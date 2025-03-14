@@ -1,0 +1,3 @@
+[submodule "modules/Export-Apple-Reminders"]
+	path = modules/Export-Apple-Reminders
+	url = git@github.com:kgruiz/Export-Apple-Reminders.git
