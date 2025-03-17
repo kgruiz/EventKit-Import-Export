@@ -147,87 +147,67 @@ class EventExtractor {
 // MARK: - Utility Function for Date Range
 
 /**
- Computes a date range relative to today based on a specified time unit and quantity.
+ Computes a date range relative to today with separate units for past and future offsets.
 
  This function calculates two dates:
- - A start date by subtracting the specified quantity of the given unit from today.
- - An end date by adding the specified quantity of the given unit to today.
+ - A start date by subtracting the specified quantity of the given past unit from today.
+ - An end date by adding the specified quantity of the given future unit to today.
 
- The function supports the following units:
+ The function supports the following units for both past and future:
  - "day": Uses calendar days.
- - "week": Returns dates that fall on the same weekday as today.
- - "month": Returns dates that fall on the same day-of-month as today.
- - "year": Returns dates that fall on the same month and day as today.
+ - "week": Returns a date that falls on the same weekday as today.
+ - "month": Returns a date that falls on the same day-of-month as today.
+ - "year": Returns a date that falls on the same month and day as today.
 
  Examples:
- - `getDateRange(past: 1, future: 1, unit: "day")` returns a range from yesterday to tomorrow.
- - `getDateRange(past: 1, future: 1, unit: "week")` returns a range from the same weekday last week to the same weekday next week.
- - `getDateRange(past: 1, future: 1, unit: "month")` returns a range from the same day last month to the same day next month.
- - `getDateRange(past: 1, future: 1, unit: "year")` returns a range from the same day last year to the same day next year.
+ - `getDateRange(past: 1, pastUnit: "day", future: 1, futureUnit: "day")` returns a range from yesterday to tomorrow.
+ - `getDateRange(past: 1, pastUnit: "week", future: 1, futureUnit: "week")` returns a range from the same weekday last week to the same weekday next week.
+ - `getDateRange(past: 1, pastUnit: "month", future: 1, futureUnit: "month")` returns a range from the same day last month to the same day next month.
+ - `getDateRange(past: 1, pastUnit: "year", future: 1, futureUnit: "year")` returns a range from the same day last year to the same day next year.
+ - Mixed units are also supported:
+   - `getDateRange(past: 2, pastUnit: "day", future: 1, futureUnit: "week")` returns a range from 2 days ago to the same weekday one week from today.
 
  - Parameters:
-    - past: The number of units to subtract from today's date to compute the start date.
-    - future: The number of units to add to today's date to compute the end date.
-    - unit: A string representing the time unit. Must be one of "day", "week", "month", or "year".
+    - past: The number of units to subtract from today's date for the start date.
+    - pastUnit: A string representing the time unit for the past offset ("day", "week", "month", or "year").
+    - future: The number of units to add to today's date for the end date.
+    - futureUnit: A string representing the time unit for the future offset ("day", "week", "month", or "year").
 
  - Returns: An optional tuple containing the computed start and end dates, or `nil` if the dates could not be calculated.
  */
-func getDateRange(past: Int, future: Int, unit: String) -> (start: Date, end: Date)? {
+func getDateRange(past: Int, pastUnit: String, future: Int, futureUnit: String) -> (start: Date, end: Date)? {
     let calendar = Calendar.current
     let today = Date()
 
-    var startDate: Date?
-    var endDate: Date?
-
-    switch unit.lowercased() {
-    case "day":
-        startDate = calendar.date(byAdding: .day, value: -past, to: today)
-        endDate = calendar.date(byAdding: .day, value: future, to: today)
-
-    case "week":
-        if let start = calendar.date(byAdding: .weekOfYear, value: -past, to: today),
-           let end = calendar.date(byAdding: .weekOfYear, value: future, to: today) {
-            let weekday = calendar.component(.weekday, from: today)
-            startDate = calendar.nextDate(after: start, matching: DateComponents(weekday: weekday), matchingPolicy: .nextTimePreservingSmallerComponents)
-            endDate = calendar.nextDate(after: end, matching: DateComponents(weekday: weekday), matchingPolicy: .nextTimePreservingSmallerComponents)
+    func component(for unit: String) -> Calendar.Component? {
+        switch unit.lowercased() {
+        case "day": return .day
+        case "week": return .weekOfYear
+        case "month": return .month
+        case "year": return .year
+        default: return nil
         }
+    }
 
-    case "month":
-        if let start = calendar.date(byAdding: .month, value: -past, to: today),
-           let end = calendar.date(byAdding: .month, value: future, to: today) {
-            let day = calendar.component(.day, from: today)
-            startDate = calendar.nextDate(after: start, matching: DateComponents(day: day), matchingPolicy: .nextTimePreservingSmallerComponents)
-            endDate = calendar.nextDate(after: end, matching: DateComponents(day: day), matchingPolicy: .nextTimePreservingSmallerComponents)
-        }
-
-    case "year":
-        if let start = calendar.date(byAdding: .year, value: -past, to: today),
-           let end = calendar.date(byAdding: .year, value: future, to: today) {
-            let month = calendar.component(.month, from: today)
-            let day = calendar.component(.day, from: today)
-            startDate = calendar.nextDate(after: start, matching: DateComponents(month: month, day: day), matchingPolicy: .nextTimePreservingSmallerComponents)
-            endDate = calendar.nextDate(after: end, matching: DateComponents(month: month, day: day), matchingPolicy: .nextTimePreservingSmallerComponents)
-        }
-
-    default:
+    guard let pastComponent = component(for: pastUnit),
+          let futureComponent = component(for: futureUnit) else {
         print("Invalid unit type. Use 'day', 'week', 'month', or 'year'.")
         return nil
     }
 
-    guard let finalStartDate = startDate, let finalEndDate = endDate else {
+    guard let startDate = calendar.date(byAdding: pastComponent, value: -past, to: today),
+          let endDate = calendar.date(byAdding: futureComponent, value: future, to: today) else {
         return nil
     }
 
-    return (finalStartDate, finalEndDate)
+    return (startDate, endDate)
 }
 
 // MARK: - Main Execution
 
-// Define date range using the utility function.
-// Example: Get events from 1 unit in the past to 1 unit in the future.
-// The unit can be "day", "week", "month", or "year".
-// Here we use "week" to get the same weekday last week and next week.
-guard let dateRange = getDateRange(past: 1, future: 1, unit: "week") else {
+// Define date range using the utility function with different units for past and future.
+// Example: Get events from 1 week ago to 1 month ahead.
+guard let dateRange = getDateRange(past: 2, pastUnit: "day", future: 1, futureUnit: "week") else {
     fatalError("Failed to compute date range")
 }
 
