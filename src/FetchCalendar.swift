@@ -1,6 +1,19 @@
 import Foundation
 import EventKit
 
+// MARK: - ANSI Escape Codes
+
+struct ANSI {
+    static let reset = "\u{001B}[0m"
+    static let bold = "\u{001B}[1m"
+    static let red = "\u{001B}[31m"
+    static let green = "\u{001B}[32m"
+    static let yellow = "\u{001B}[33m"
+    static let blue = "\u{001B}[34m"
+    static let magenta = "\u{001B}[35m"
+    static let cyan = "\u{001B}[36m"
+}
+
 // MARK: - JSON Structures
 
 struct EventJSON: Codable {
@@ -54,9 +67,9 @@ class EventExtractor {
                 self.fetchAllEvents(startDate: startDate, endDate: endDate)
             } else {
                 if let error = error {
-                    print("Error requesting access: \(error)")
+                    print("\(ANSI.red)Error requesting access: \(error)\(ANSI.reset)")
                 } else {
-                    print("Access to calendar events was not granted.")
+                    print("\(ANSI.red)Access to calendar events was not granted.\(ANSI.reset)")
                 }
                 self.dispatchGroup.leave()
             }
@@ -68,7 +81,7 @@ class EventExtractor {
         let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
         let events = eventStore.events(matching: predicate)
         if events.isEmpty {
-            print("No events found.")
+            print("\(ANSI.yellow)No events found.\(ANSI.reset)")
         }
         for event in events {
             if let jsonEvent = createEventJSON(from: event) {
@@ -136,10 +149,10 @@ class EventExtractor {
             let fileURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("events.json")
             try data.write(to: fileURL)
-            print("Events written to: \(fileURL.path)")
-            print("Total events exported: \(eventsJSON.count)")
+            print("\(ANSI.green)Events written to: \(fileURL.path)\(ANSI.reset)")
+            print("\(ANSI.green)Total events exported: \(eventsJSON.count)\(ANSI.reset)")
         } catch {
-            print("Failed to write events to JSON: \(error)")
+            print("\(ANSI.red)Failed to write events to JSON: \(error)\(ANSI.reset)")
         }
     }
 }
@@ -153,25 +166,25 @@ class EventExtractor {
  - A start date by subtracting the specified quantity of the given past unit from today.
  - An end date by adding the specified quantity of the given future unit to today.
 
- The function supports the following units for both past and future:
- - "day": Uses calendar days.
- - "week": Returns a date that falls on the same weekday as today.
- - "month": Returns a date that falls on the same day-of-month as today.
- - "year": Returns a date that falls on the same month and day as today.
+ The function supports both singular and plural forms of the following units for both past and future:
+ - "day" / "days": Uses calendar days.
+ - "week" / "weeks": Returns a date that falls on the same weekday as today.
+ - "month" / "months": Returns a date that falls on the same day-of-month as today.
+ - "year" / "years": Returns a date that falls on the same month and day as today.
 
  Examples:
  - `getDateRange(past: 1, pastUnit: "day", future: 1, futureUnit: "day")` returns a range from yesterday to tomorrow.
- - `getDateRange(past: 1, pastUnit: "week", future: 1, futureUnit: "week")` returns a range from the same weekday last week to the same weekday next week.
+ - `getDateRange(past: 1, pastUnit: "week", future: 1, futureUnit: "weeks")` returns a range from the same weekday last week to the same weekday next week.
  - `getDateRange(past: 1, pastUnit: "month", future: 1, futureUnit: "month")` returns a range from the same day last month to the same day next month.
- - `getDateRange(past: 1, pastUnit: "year", future: 1, futureUnit: "year")` returns a range from the same day last year to the same day next year.
+ - `getDateRange(past: 1, pastUnit: "year", future: 1, futureUnit: "years")` returns a range from the same day last year to the same day next year.
  - Mixed units are also supported:
-   - `getDateRange(past: 2, pastUnit: "day", future: 1, futureUnit: "week")` returns a range from 2 days ago to the same weekday one week from today.
+   - `getDateRange(past: 2, pastUnit: "days", future: 1, futureUnit: "week")` returns a range from 2 days ago to the same weekday one week from today.
 
  - Parameters:
     - past: The number of units to subtract from today's date for the start date.
-    - pastUnit: A string representing the time unit for the past offset ("day", "week", "month", or "year").
+    - pastUnit: A string representing the time unit for the past offset ("day", "days", "week", "weeks", "month", "months", "year", or "years").
     - future: The number of units to add to today's date for the end date.
-    - futureUnit: A string representing the time unit for the future offset ("day", "week", "month", or "year").
+    - futureUnit: A string representing the time unit for the future offset ("day", "days", "week", "weeks", "month", "months", "year", or "years").
 
  - Returns: An optional tuple containing the computed start and end dates, or `nil` if the dates could not be calculated.
  */
@@ -180,18 +193,17 @@ func getDateRange(past: Int, pastUnit: String, future: Int, futureUnit: String) 
     let today = Date()
 
     func component(for unit: String) -> Calendar.Component? {
-        switch unit.lowercased() {
-        case "day": return .day
-        case "week": return .weekOfYear
-        case "month": return .month
-        case "year": return .year
-        default: return nil
-        }
+        let lower = unit.lowercased()
+        if lower == "day" || lower == "days" { return .day }
+        if lower == "week" || lower == "weeks" { return .weekOfYear }
+        if lower == "month" || lower == "months" { return .month }
+        if lower == "year" || lower == "years" { return .year }
+        return nil
     }
 
     guard let pastComponent = component(for: pastUnit),
           let futureComponent = component(for: futureUnit) else {
-        print("Invalid unit type. Use 'day', 'week', 'month', or 'year'.")
+        print("\(ANSI.red)Invalid unit type. Use 'day(s)', 'week(s)', 'month(s)', or 'year(s)'.\(ANSI.reset)")
         return nil
     }
 
@@ -203,13 +215,43 @@ func getDateRange(past: Int, pastUnit: String, future: Int, futureUnit: String) 
     return (startDate, endDate)
 }
 
+/// Formats a TimeInterval into a human-readable string.
+func format(interval: TimeInterval) -> String {
+    let formatter = DateComponentsFormatter()
+    formatter.allowedUnits = [.day, .hour, .minute, .second]
+    formatter.unitsStyle = .full
+    return formatter.string(from: interval) ?? ""
+}
+
+/// Displays detailed information about the computed date range using ANSI colors and formatting.
+func displayDateRangeInfo(start: Date, end: Date) {
+    let today = Date()
+    let totalInterval = end.timeIntervalSince(start)
+    let beforeToday = today.timeIntervalSince(start)
+    let afterToday = end.timeIntervalSince(today)
+
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateStyle = .full
+    dateFormatter.timeStyle = .short
+
+    print("\(ANSI.bold)\(ANSI.cyan)Date Range Information:\(ANSI.reset)")
+    print("\(ANSI.bold)\(ANSI.cyan)-----------------------\(ANSI.reset)")
+    print("\(ANSI.bold)Start Date:\(ANSI.reset) \(ANSI.magenta)\(dateFormatter.string(from: start))\(ANSI.reset)")
+    print("\(ANSI.bold)End Date:  \(ANSI.reset) \(ANSI.magenta)\(dateFormatter.string(from: end))\(ANSI.reset)")
+    print("\(ANSI.bold)Total Length:\(ANSI.reset) \(ANSI.green)\(format(interval: totalInterval))\(ANSI.reset)")
+    print("\(ANSI.bold)Started:\(ANSI.reset) \(ANSI.yellow)\(format(interval: beforeToday))\(ANSI.reset) before today")
+    print("\(ANSI.bold)Ends:   \(ANSI.reset) \(ANSI.yellow)\(format(interval: afterToday))\(ANSI.reset) after today")
+}
+
 // MARK: - Main Execution
 
 // Define date range using the utility function with different units for past and future.
 // Example: Get events from 1 week ago to 1 month ahead.
-guard let dateRange = getDateRange(past: 2, pastUnit: "day", future: 1, futureUnit: "week") else {
+guard let dateRange = getDateRange(past: 2, pastUnit: "days", future: 1, futureUnit: "week") else {
     fatalError("Failed to compute date range")
 }
+
+displayDateRangeInfo(start: dateRange.start, end: dateRange.end)
 
 let extractor = EventExtractor()
 extractor.requestAccessAndFetchAllEvents(startDate: dateRange.start, endDate: dateRange.end)
