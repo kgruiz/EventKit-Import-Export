@@ -146,8 +146,10 @@ class EventExtractor {
 
         do {
             let data = try encoder.encode(eventsJSON)
-            let fileURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                .appendingPathComponent("events.json")
+            let scriptURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
+            let outputDir = scriptURL.appendingPathComponent("../output", isDirectory: true).standardizedFileURL
+            try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true, attributes: nil)
+            let fileURL = outputDir.appendingPathComponent("events.json")
             try data.write(to: fileURL)
             print("\(ANSI.green)Events written to: \(fileURL.path)\(ANSI.reset)")
             print("\(ANSI.green)Total events exported: \(eventsJSON.count)\(ANSI.reset)")
@@ -247,7 +249,7 @@ func displayDateRangeInfo(start: Date, end: Date) {
 
 // Define date range using the utility function with different units for past and future.
 // Example: Get events from 1 week ago to 1 month ahead.
-guard let dateRange = getDateRange(past: 2, pastUnit: "days", future: 1, futureUnit: "week") else {
+guard let dateRange = getDateRange(past: 1, pastUnit: "day", future: 30, futureUnit: "days") else {
     fatalError("Failed to compute date range")
 }
 
